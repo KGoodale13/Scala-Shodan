@@ -2,7 +2,7 @@ package com.kylegoodale.shodan
 
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
-import com.kylegoodale.shodan.models.HostInfo
+import com.kylegoodale.shodan.models.{HostInfo, HostSearchResult}
 import play.api.libs.json._
 import play.api.libs.ws.JsonBodyReadables._
 import play.api.libs.ws.ahc.StandaloneAhcWSClient
@@ -25,14 +25,15 @@ class ShodanClient(apiKey: String)(implicit ec: ExecutionContext) {
   private val wsClient = StandaloneAhcWSClient()
 
 
+  // TODO: Remove duplicate code when handling request response code and parsing that shit from JSON
+
   private def getRequest[ResponseType](path: String, params: Seq[(String, String)] = Seq[(String, String)]())(implicit reads: Reads[ResponseType]):
     Future[Try[ResponseType]] =
       wsClient.url(s"$REST_API_ENDPOINT/$path")
         .addQueryStringParameters( params :+ (("key", apiKey)):_* )
         .get().map { response =>
-          println(response.body)
           if(response.status != 200)
-            Failure(new Exception(s"API Request to path $path failed with status code ${response.status}"))
+            Failure(new Exception(s"API Request to path $path failed with status code ${response.status}. Error Message: ${response.body}"))
           else
             response.body[JsValue].validate[ResponseType] match {
               case response: JsSuccess[ResponseType] => Success(response.value)
@@ -47,7 +48,7 @@ class ShodanClient(apiKey: String)(implicit ec: ExecutionContext) {
     * @param history - True if all historical banners should be returned (default: False)
     * @param minify - True to only return the list of ports and the general host information, no banners. (default: False)
     */
-  def searchHost(ip: String, history: Boolean = false, minify: Boolean = false): Future[HostInfo] = {
+  def hostInfo(ip: String, history: Boolean = false, minify: Boolean = false): Future[HostInfo] = {
     import HostInfo.hostInfoReads
 
     val params = Seq[(String, String)](
@@ -55,6 +56,25 @@ class ShodanClient(apiKey: String)(implicit ec: ExecutionContext) {
       ("minify", minify.toString)
     )
     getRequest[HostInfo](s"/shodan/host/$ip", params).flatMap(Future.fromTry)
+  }
+
+  /**
+    * Searches Shodan using the passed search query
+    * @param query - A query string using the same syntax as the website
+    * @param facets - A facet string to retrieve stats on the matching data set i.e top 10 countries matching the query (Default: None)
+    * @param page - The page number (Default: 1)
+    * @param minify - if true this will truncate some of the larger data fields. (Default true)
+    * @return
+    */
+  def hostSearch(query: String, facets: Option[String] = None, page: Int = 1, minify: Boolean = true): Future[HostSearchResult] = {
+    import HostSearchResult._
+
+    val params = Seq[(String, String)](
+      ("query", query),
+      ("page", page.toString),
+      ("minify", minify.toString)
+    ) ++ facets.map(("facets", _))
+    getRequest[HostSearchResult]("/shodan/host/search", params).flatMap(Future.fromTry)
   }
 
 }
