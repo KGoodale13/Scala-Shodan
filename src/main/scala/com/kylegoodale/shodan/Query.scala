@@ -54,6 +54,7 @@ class Query(
   def withinNetCIDRBlock(networkBlock: String) = addFilter("net", networkBlock)
   def withPort(port: String) = addFilter("port", port)
   def withPort(port: Int): Query = this.withPort(port.toString)
+  def withPorts(ports: Int*): Query = this.withPort(ports.map(_.toString).mkString(","))
 
 
   def withScreenshot = addFilter("has_screenshot", "true")
