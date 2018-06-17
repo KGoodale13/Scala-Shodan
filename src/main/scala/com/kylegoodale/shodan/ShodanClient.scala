@@ -42,6 +42,8 @@ class ShodanClient(apiKey: String)(implicit ec: ExecutionContext) {
         }
 
 
+  /** Search methods **/
+
   /**
     * Returns all services that have been found on the given host IP.
     * @param ip - Host IP address
@@ -105,5 +107,23 @@ class ShodanClient(apiKey: String)(implicit ec: ExecutionContext) {
     )
     getRequest[SearchTokenResult]("/shodan/host/search/tokens", params).flatMap(Future.fromTry)
   }
+
+  /**
+    * This method returns a list of port numbers that the crawlers are looking for.
+    * @return List[Int]
+    */
+  def ports(): Future[List[Int]] = getRequest[List[Int]]("/shodan/ports").flatMap(Future.fromTry)
+
+
+
+  /** On-Demand scanning methods **/
+
+  /**
+    * This method returns an object containing all the protocols that can be used when launching an Internet scan.
+    * @return
+    */
+  def protocols(): Future[Map[String, String]] = getRequest[Map[String, String]]("/shodan/protocols").flatMap(Future.fromTry)
+
+
 
 }
