@@ -26,6 +26,16 @@ class ShodanClient(apiKey: String)(implicit ec: ExecutionContext) {
   implicit val materializer = ActorMaterializer()
   private val wsClient = StandaloneAhcWSClient()
 
+  // Implicit Option[T] formatter for json body parsing optional values. Source: https://stackoverflow.com/questions/43031412/no-json-formatter-for-optionstring
+  private implicit def optionFormat[T: Format]: Format[Option[T]] = new Format[Option[T]]{
+    override def reads(json: JsValue): JsResult[Option[T]] = json.validateOpt[T]
+
+    override def writes(o: Option[T]): JsValue = o match {
+      case Some(t) ⇒ implicitly[Writes[T]].writes(t)
+      case None ⇒ JsNull
+    }
+  }
+
 
   private def handleResponse[ResponseType](response: StandaloneWSResponse)
     (implicit reads: Reads[ResponseType]): Try[ResponseType] =
@@ -58,7 +68,7 @@ class ShodanClient(apiKey: String)(implicit ec: ExecutionContext) {
     * Returns information about the Shodan account linked to this API key.
     * @return Profile - This accounts profile data
     */
-  def profile() = Future[Profile] = getRequest[Profile]("/account/profile").flatMap(Future.fromTry)
+  def profile(): Future[Profile] = getRequest[Profile]("/account/profile").flatMap(Future.fromTry)
 
   /** Search methods **/
 
@@ -175,6 +185,25 @@ class ShodanClient(apiKey: String)(implicit ec: ExecutionContext) {
     */
   def datasetFiles(datasetName: String) = getRequest[List[DatasetFile]](s"/shodan/data/$datasetName").flatMap(Future.fromTry)
 
-  
 
+
+  /** DNS methods **/
+
+
+  /**
+    * Look up the IP address for the provided list of hostnames.
+    * @param hostnames vararg list of hostnames to retrieve ip addresses for
+    * @return Map of hostname -> ip address
+    */
+  def resolveDNS(hostnames: String*) =
+    getRequest[Map[String, Option[String]]]("/dns/resolve", Seq(("hostnames", hostnames.mkString(",")))).flatMap(Future.fromTry)
+
+
+  /**
+    * Look up the hostnames that have been defined for the given list of IP addresses.
+    * @param ips vararg list of ips to retrieve ip addresses for
+    * @return Map of ip address -> list of hostnames associations
+    */
+  def reverseDNS(ips: String*) =
+    getRequest[Map[String, Option[List[String]]]]("/dns/reverse", Seq(("ips", ips.mkString(",")))).flatMap(Future.fromTry)
 }
