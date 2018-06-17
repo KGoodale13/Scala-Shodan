@@ -152,7 +152,21 @@ class ShodanClient(apiKey: String)(implicit ec: ExecutionContext) {
   def scanStatus(scanId: String): Future[ScanStatus] = getRequest[ScanStatus](s"/shodan/scan/$scanId").flatMap(Future.fromTry)
 
 
-  /** Network alert methods **/
+  /** Bulk Data methods **/
+
+
+  /**
+    * Use this method to see a list of the datasets that are available for download.
+    * @return List[Dataset]
+    */
+  def datasets(): Future[List[Dataset]] = getRequest[List[Dataset]]("/shodan/data").flatMap(Future.fromTry)
+
+  /**
+    * Get a list of files that are available for download from the provided dataset.
+    * @param datasetName - Name of the dataset to retrieve a list of available files for
+    * @return A list of DatasetFiles containing info on available files for download in the queried dataset
+    */
+  def datasetFiles(datasetName: String) = getRequest[List[DatasetFile]](s"/shodan/data/$datasetName").flatMap(Future.fromTry)
 
 
 
