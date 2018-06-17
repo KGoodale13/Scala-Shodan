@@ -53,6 +53,13 @@ class ShodanClient(apiKey: String)(implicit ec: ExecutionContext) {
         .get()
         .map(handleResponse[ResponseType](_))
 
+
+  /**
+    * Returns information about the Shodan account linked to this API key.
+    * @return Profile - This accounts profile data
+    */
+  def profile() = Future[Profile] = getRequest[Profile]("/account/profile").flatMap(Future.fromTry)
+
   /** Search methods **/
 
   /**
@@ -168,6 +175,6 @@ class ShodanClient(apiKey: String)(implicit ec: ExecutionContext) {
     */
   def datasetFiles(datasetName: String) = getRequest[List[DatasetFile]](s"/shodan/data/$datasetName").flatMap(Future.fromTry)
 
-
+  
 
 }
