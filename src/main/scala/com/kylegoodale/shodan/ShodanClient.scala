@@ -2,10 +2,12 @@ package com.kylegoodale.shodan
 
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
-import com.kylegoodale.shodan.models.{HostInfo, HostSearchResult, SearchTokenResult}
+import com.kylegoodale.shodan.models._
 import play.api.libs.json._
 import play.api.libs.ws.JsonBodyReadables._
+import play.api.libs.ws.StandaloneWSResponse
 import play.api.libs.ws.ahc.StandaloneAhcWSClient
+import play.api.libs.ws.DefaultBodyWritables.writeableOf_urlEncodedSimpleForm
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success, Try}
@@ -25,22 +27,31 @@ class ShodanClient(apiKey: String)(implicit ec: ExecutionContext) {
   private val wsClient = StandaloneAhcWSClient()
 
 
-  // TODO: Remove duplicate code when handling request response code and parsing that shit from JSON
+  private def handleResponse[ResponseType](response: StandaloneWSResponse)
+    (implicit reads: Reads[ResponseType]): Try[ResponseType] =
+  {
+    if(response.status != 200)
+      Failure(new Exception(s"API Request to path ${response.uri.getPath} failed with status code ${response.status}. Error Message: ${response.body}"))
+    else
+      response.body[JsValue].validate[ResponseType] match {
+        case response: JsSuccess[ResponseType] => Success(response.value)
+        case err: JsError => Failure(JsResultException(err.errors))
+      }
+  }
 
-  private def getRequest[ResponseType](path: String, params: Seq[(String, String)] = Seq[(String, String)]())(implicit reads: Reads[ResponseType]):
-    Future[Try[ResponseType]] =
+  private def postRequest[ResponseType](path: String, params: Map[String, String] = Map[String, String]())
+    (implicit reads: Reads[ResponseType]): Future[Try[ResponseType]] =
+      wsClient.url(s"$REST_API_ENDPOINT/$path")
+        .addQueryStringParameters(("key", apiKey))
+        .post(params)
+        .map(handleResponse[ResponseType](_))
+
+  private def getRequest[ResponseType](path: String, params: Seq[(String, String)] = Seq[(String, String)]())
+    (implicit reads: Reads[ResponseType]): Future[Try[ResponseType]] =
       wsClient.url(s"$REST_API_ENDPOINT/$path")
         .addQueryStringParameters( params :+ (("key", apiKey)):_* )
-        .get().map { response =>
-          if(response.status != 200)
-            Failure(new Exception(s"API Request to path $path failed with status code ${response.status}. Error Message: ${response.body}"))
-          else
-            response.body[JsValue].validate[ResponseType] match {
-              case response: JsSuccess[ResponseType] => Success(response.value)
-              case err: JsError => Failure(JsResultException(err.errors))
-            }
-        }
-
+        .get()
+        .map(handleResponse[ResponseType](_))
 
   /** Search methods **/
 
@@ -100,8 +111,6 @@ class ShodanClient(apiKey: String)(implicit ec: ExecutionContext) {
     * @return SearchTokenResult containing information on how Shodan interpreted the query string as described above
     */
   def hostSearchTokens(query: String): Future[SearchTokenResult] = {
-    import HostSearchResult._
-
     val params = Seq[(String, String)](
       ("query", query)
     )
@@ -115,14 +124,35 @@ class ShodanClient(apiKey: String)(implicit ec: ExecutionContext) {
   def ports(): Future[List[Int]] = getRequest[List[Int]]("/shodan/ports").flatMap(Future.fromTry)
 
 
-
   /** On-Demand scanning methods **/
+
 
   /**
     * This method returns an object containing all the protocols that can be used when launching an Internet scan.
     * @return
     */
   def protocols(): Future[Map[String, String]] = getRequest[Map[String, String]]("/shodan/protocols").flatMap(Future.fromTry)
+
+  /**
+    * Use this method to request Shodan to crawl a network.
+    * @param ips A comma-separated list of IPs or netblocks (in CIDR notation) that should get crawled.
+    * @return ScanResponse
+    */
+  def scan(ips: String): Future[ScanResponse] =
+    postRequest[ScanResponse]("/shodan/scan", Map("ips" -> ips)).flatMap(Future.fromTry)
+
+  // Overloaded method to allow ips to be passed as varargs for convenience
+  def scan(ips: String*): Future[ScanResponse] = scan(ips.mkString(","))
+
+  /**
+    * Check the progress of a previously submitted scan request
+    * @param scanId The unique scan ID that was returned by /shodan/scan
+    * @return ScanStatus
+    */
+  def scanStatus(scanId: String): Future[ScanStatus] = getRequest[ScanStatus](s"/shodan/scan/$scanId").flatMap(Future.fromTry)
+
+
+  /** Network alert methods **/
 
 
 
