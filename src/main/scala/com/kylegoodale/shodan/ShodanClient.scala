@@ -51,7 +51,7 @@ class ShodanClient(apiKey: String)(implicit ec: ExecutionContext) {
 
   private def postRequest[ResponseType](path: String, params: Map[String, String] = Map[String, String]())
     (implicit reads: Reads[ResponseType]): Future[Try[ResponseType]] =
-      wsClient.url(s"$REST_API_ENDPOINT/$path")
+      wsClient.url(s"$REST_API_ENDPOINT$path")
         .addQueryStringParameters(("key", apiKey))
         .post(params)
         .map(handleResponse[ResponseType](_))
@@ -223,6 +223,27 @@ class ShodanClient(apiKey: String)(implicit ec: ExecutionContext) {
     */
   def myIP() = getRequest[String]("/tools/myip").flatMap(Future.fromTry)
 
-  
 
+  /**
+    * Returns information about the API plan belonging to the given API key.
+    * @return APIInfo containing information on this accounts remaining credits and api plan
+    */
+  def getAPIInfo() = getRequest[APIInfo]("/api-info").flatMap(Future.fromTry)
+
+
+  /**
+    * Calculates a honeypot probability score ranging from 0 (not a honeypot) to 1.0 (is a honeypot).
+    * @param ip - The IP to calculate the honeypot score for
+    * @return The score from 0->1 as a double
+    */
+  def honeyScore(ip: String) =
+    wsClient.url(s"$REST_API_ENDPOINT/labs/honeyscore/$ip")
+    .addQueryStringParameters(("key", apiKey))
+    .get()
+    .map { response =>
+      if(response.status != 200)
+        Failure(new Exception(s"API Request to path ${response.uri.getPath} failed with status code ${response.status}. Error Message: ${response.body}"))
+      else
+        Success(response.body.toDouble)
+    }.flatMap(Future.fromTry)
 }
