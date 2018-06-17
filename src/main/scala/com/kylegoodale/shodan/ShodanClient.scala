@@ -206,4 +206,23 @@ class ShodanClient(apiKey: String)(implicit ec: ExecutionContext) {
     */
   def reverseDNS(ips: String*) =
     getRequest[Map[String, Option[List[String]]]]("/dns/reverse", Seq(("ips", ips.mkString(",")))).flatMap(Future.fromTry)
+
+
+  /** Utility methods **/
+
+
+  /**
+    * Shows the HTTP headers that your client sends when connecting to a webserver.
+    * @return Map of key value pairs of headers
+    */
+  def httpHeaders() = getRequest[Map[String, String]]("/tools/httpheaders").flatMap(Future.fromTry)
+
+  /**
+    * Get your current IP address as seen from the Internet.
+    * @return Your IP address (String)
+    */
+  def myIP() = getRequest[String]("/tools/myip").flatMap(Future.fromTry)
+
+  
+
 }
