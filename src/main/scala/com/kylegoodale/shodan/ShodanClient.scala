@@ -2,7 +2,7 @@ package com.kylegoodale.shodan
 
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
-import com.kylegoodale.shodan.models.{HostInfo, HostSearchResult}
+import com.kylegoodale.shodan.models.{HostInfo, HostSearchResult, SearchTokenResult}
 import play.api.libs.json._
 import play.api.libs.ws.JsonBodyReadables._
 import play.api.libs.ws.ahc.StandaloneAhcWSClient
@@ -75,6 +75,35 @@ class ShodanClient(apiKey: String)(implicit ec: ExecutionContext) {
       ("minify", minify.toString)
     ) ++ facets.map(("facets", _))
     getRequest[HostSearchResult]("/shodan/host/search", params).flatMap(Future.fromTry)
+  }
+
+  /**
+    * Searches Shodan using the passed search query and returns only the total count of matches and any facet information.
+    * @param query - A query string using the same syntax as the website
+    * @param facets - A facet string to retrieve stats on the matching data set i.e top 10 countries matching the query (Default: None)
+    * @return HostSearchResult containing only the total count and facet info
+    */
+  def hostCount(query: String, facets: Option[String] = None): Future[HostSearchResult] = {
+    import HostSearchResult._
+
+    val params = Seq[(String, String)](
+      ("query", query)
+    ) ++ facets.map(("facets", _))
+    getRequest[HostSearchResult]("/shodan/host/count", params).flatMap(Future.fromTry)
+  }
+
+  /**
+    * This method lets you determine which filters are being used by the query string and what parameters were provided to the filters.
+    * @param query - A query string using the same syntax as the website
+    * @return SearchTokenResult containing information on how Shodan interpreted the query string as described above
+    */
+  def hostSearchTokens(query: String): Future[SearchTokenResult] = {
+    import HostSearchResult._
+
+    val params = Seq[(String, String)](
+      ("query", query)
+    )
+    getRequest[SearchTokenResult]("/shodan/host/search/tokens", params).flatMap(Future.fromTry)
   }
 
 }
