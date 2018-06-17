@@ -1,7 +1,7 @@
 package com.kylegoodale.shodan.models
 
 import play.api.libs.json._
-import play.api.libs.functional.syntax._
+import ai.x.play.json.Jsonx
 
 /**
   * Case class for shodan's banner specifications (https://developer.shodan.io/api/banner-specification)
@@ -13,7 +13,8 @@ import play.api.libs.functional.syntax._
   * @param ipv6 - The IPv6 address of the host as a string. If this is present then the "ip" and "ip_str" fields wont be
   * @param port - The port number that the service is operating on
   * @param timestamp - The timestamp for when the banner was fetched from the device in the UTC timezone.
-  * @param hostname - An array of strings containing all of the hostnames that have been assigned to the IP address for this device.
+  * @param hostnames - An array of strings containing all of the hostnames that have been assigned to the IP address for this device.
+  * @param vulns - A list of vulnerabilities found on this server
   * @param domains -  An array of strings containing the top-level domains for the hostnames of the device. This is a utility property in case you want to filter by TLD instead of subdomain. It is smart enough to handle global TLDs with several dots in the domain
   * @param location - An object containing all of the location information for the device (See Location case class)
   * @param org - The name of the organization that is assigned the IP space for this device.
@@ -29,6 +30,8 @@ import play.api.libs.functional.syntax._
   * @param devicetype - The type of device (webcam, router, etc.).
   * @param info - Miscellaneous information that was extracted about the product.
   * @param cpe - The relevant Common Platform Enumeration for the product or known vulnerabilities if available
+  * @param hash - A hash of this Banners data
+  * @param tags - Tags associated with this device
   */
 case class Banner(
   data: String,
@@ -36,11 +39,13 @@ case class Banner(
   timestamp: String,
   domains: List[String],
   location: Location,
-  os: String,
   transport: String,
-  opts: Map[String, JsValue], // No specification is listed for this so we are unable to parse this into any standard types
-
-  /** Optional properties */
+  isp: Option[String],
+  org: Option[String],
+  hostnames: Option[List[String]],
+  asn: Option[String],
+  os: Option[String],
+  vulns: Option[Map[String, Vulnerability]], // No specification is listed for this so we are unable to parse this into any standard types
   ip: Option[Long],
   ip_str: Option[String],
   ipv6: Option[String],
@@ -52,21 +57,30 @@ case class Banner(
   version: Option[String],
   devicetype: Option[String],
   info: Option[String],
-  cpe: Option[String],
-  ssl: Option[SSLInfo]
+  cpe: Option[List[String]],
+  ssl: Option[SSLInfo],
+  hash: Option[Long],
+  tags: Option[List[String]],
+  http: Option[HttpData]
 )
 
 
 
 // Companion object containing json readers for our banner specification and associated classes
 object Banner {
-  implicit val locationReads = Json.reads[Location]
-  implicit val dhparamsReads = Json.reads[DiffieHellmanParams]
-  implicit val cipherReads = Json.reads[Cipher]
-  implicit val sslInfoReads = Json.reads[SSLInfo]
+  import ai.x.play.json.implicits.optionWithNull
+
+  implicit val vulnerabilityReads = Json.format[Vulnerability]
+  implicit val locationReads = Json.format[Location]
+  implicit val dhparamsReads = Json.format[DiffieHellmanParams]
+  implicit val cipherReads = Json.format[Cipher]
+  implicit val sslInfoReads = Json.format[SSLInfo]
+  implicit val htmlComponentsData = Json.format[HTMLComponentsData]
+  implicit val redirectDataReads = Json.format[RedirectData]
+  implicit val httpdataReads = Json.format[HttpData]
 
   // Combine our two separate reads to create a single reader for our Banner case class that fits all the params
-  implicit val bannerReads = Json.reads[Banner]
+  implicit val bannerReads = Jsonx.formatCaseClass[Banner]
 }
 
 /**
@@ -85,15 +99,15 @@ object Banner {
   */
 case class Location(
   area_code: Option[Int],
-  city: String,
+  city: Option[String],
   country_code: String,
   country_code3: String,
-  country_name: String,
+  country_name: Option[String],
   dma_code: Option[Int],
   latitude: Double,
   longitude: Double,
-  postal_code: String,
-  region_code: String
+  postal_code: Option[String],
+  region_code: Option[String]
 )
 
 /**
@@ -112,9 +126,8 @@ case class SSLInfo(
 
 case class DiffieHellmanParams(
   bits: Int,
-  prime: String,
-  publicKey: String,
-  generator: String,
+  prime: Option[String],
+  publicKey: Option[String],
   fingerprint: Option[String]
 )
 
@@ -123,6 +136,50 @@ case class Cipher(
   version: String,
   name: String
 )
+
+case class Vulnerability(
+  verified: Boolean,
+  references: List[String],
+  summary: Option[String]
+)
+
+/**
+  * Data relating to the HTTP server running on this device
+  * @param robots - The Robots.txt content
+  * @param robots_hash - A hash of the robots.txt
+  * @param securitytxt - The security.txt content
+  * @param securitytxt_hash - Hash of the security.txt content
+  * @param components - Components running on this web server listed as strings
+  * @param location - The URL location the crawler was at when fetching this data
+  * @param redirects - List of redirects that brought the crawler to this page
+  * @param sitemap - List of pages on this site
+  * @param sitemap_hash - Hash of the sitemap
+  * @param host - The hostname of this webserver
+  * @param server - The http server software running on this device i.e Apache 2.5
+  * @param title - The title of the homepage
+  * @param html - The html content of the homepage
+  * @param html_hash - A hash of the html content
+  */
+case class HttpData(
+  robots: Option[String],
+  robots_hash: Option[Long],
+  securitytxt: Option[String],
+  securitytxt_hash: Option[Long],
+  components: Option[Map[String, HTMLComponentsData]],
+  location: Option[String],
+  redirects: Option[List[RedirectData]],
+  sitemap: Option[String],
+  sitemap_hash: Option[String],
+  host: Option[String],
+  server: Option[String],
+  title: Option[String],
+  html: Option[String],
+  html_hash: Option[Long]
+)
+
+case class HTMLComponentsData(categories: List[String])
+
+case class RedirectData(host: String, data: String, location: String)
 
 
 

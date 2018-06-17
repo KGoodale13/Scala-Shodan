@@ -49,12 +49,13 @@ case class HostInfo(
   ip: Option[Long],
   ipv6: Option[String],
   ip_str: Option[String],
-  vulns: Option[List[String]],
-  tags: Option[List[String]],
+  vulns: Option[Map[String, Vulnerability]],
+  tags: Option[List[String]]
 )
 
 // Companion object containing our json reader
 object HostInfo {
+  import Banner.vulnerabilityReads
   implicit val hostInfoReads = Json.reads[HostInfo]
 }
 
